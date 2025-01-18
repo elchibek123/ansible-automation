@@ -1,0 +1,106 @@
+---
+- name: Check if MySQL is already running
+  block:
+    - name: Copy check_running_container.sh to remote host
+      template:
+        src: check_running_container.sh
+        dest: "/tmp/check_running_container.sh"
+        mode: '0755'
+        force: yes
+
+    - name: Execute check_running_container.sh with package name as argument
+      command: "/tmp/check_running_container.sh mysql"
+      register: result_out
+      ignore_errors: true
+      changed_when: false
+
+  always:
+    - name: Remove check_running_container.sh from /tmp folder
+      file:
+        path: "/tmp/check_running_container.sh"
+        state: absent
+
+- name: Display message when MySQL is already running
+  debug:
+    msg: "MySQL is already running on a container."
+  when: result_out.rc == 0
+
+- name: Proceed with MySQL installation
+  when: result_out.rc != 0
+  block:
+    - name: Ensure Docker Compose is installed
+      apt:
+        name: docker-compose
+        state: present
+
+    - name: Create directory {{ mysql_data_dir }}
+      file:
+        path: "{{ mysql_data_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy docker-compose.yml to remote host
+      template:
+        src: docker-compose.yml.j2
+        dest: "{{ mysql_data_dir }}/docker-compose.yml"
+        mode: '0644'
+        force: yes
+
+    - name: Start MySQL container
+      command: docker-compose up -d
+      args:
+        chdir: "{{ mysql_data_dir }}"
+
+- name: Set up backup
+  when: enable_automatic_backups | bool
+  block:
+    - name: Install python3-pip
+      apt:
+        name: python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Ensure required Python packages are installed
+      apt:
+        name: python3-boto3
+        state: present
+    
+    - name: Create directory {{ mysql_data_dir }}
+      file:
+        path: "{{ mysql_data_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create MySQL backup directory
+      file:
+        path: "{{ mysql_backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Set up backup cron job
+      cron:
+        name: "MySQL backup"
+        hour: "{{ backup_hour }}"
+        minute: "{{ backup_minute }}"
+        job: "docker exec {{ mysql_container_name }} pg_dump -U {{ mysql_user }} {{ mysql_db }} | gzip > {{ mysql_backup_dir }}/backup_$(date +\\%Y\\%m\\%d).sql.gz"
+
+    - name: Copy upload_backup_to_s3.py to remote host
+      template:
+        src: upload_backup_to_s3.py
+        dest: "{{ mysql_data_dir }}/upload_backup_to_s3.py"
+        mode: '0644'
+        force: yes
+
+    - name: Set up S3 upload cron job
+      cron:
+        name: "Upload backup to S3"
+        hour: "{{ backup_hour }}"
+        minute: "{{ (backup_minute | int + 5) % 60 }}"
+        job: "python3 {{ mysql_data_dir }}/upload_backup_to_s3.py {{ mysql_backup_dir }} {{ s3_bucket }} {{ bucket_folder }}"
+
+    - name: Set up backup cleanup cron job
+      cron:
+        name: "Clean old MySQL backups"
+        hour: "{{ backup_hour }}"
+        minute: "{{ (backup_minute | int + 10) % 60 }}"
+        job: "find {{ mysql_backup_dir }} -name 'backup_*.sql.gz' -mtime +{{ mysql_backup_retention_days }} -delete"

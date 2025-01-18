@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:{{ mysql_version }}
+    container_name: {{ mysql_container_name }}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: {{ root_password }}
+      MYSQL_DATABASE: {{ mysql_db }}
+      MYSQL_USER: {{ mysql_user }}
+      MYSQL_PASSWORD: {{ mysql_password }}
+    ports:
+      - "{{ mysql_port }}:3306"
+    volumes:
+      - {{ mysql_volume_name }}:/var/lib/mysql
+
+volumes:
+  {{ mysql_volume_name }}:
+    name: {{ mysql_volume_name }}

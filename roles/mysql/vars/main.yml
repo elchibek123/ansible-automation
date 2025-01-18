@@ -1,0 +1,18 @@
+# Database configuration
+mysql_version: "9"
+mysql_user: "mysqldbuser"
+mysql_password: "mysql123"
+root_password: "mysqlroot123"
+mysql_db: "mysql_db"
+mysql_port: "3306"
+
+# Container configuration
+mysql_container_name: "mysql_db"
+mysql_volume_name: "mysql_data"
+
+# Backup configuration
+enable_automatic_backups: false
+
+# S3 bucket
+s3_bucket: ""
+bucket_folder: ""

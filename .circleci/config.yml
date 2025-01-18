@@ -1,0 +1,87 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@5.1.1
+
+jobs:
+  deploy-dev:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      
+      - run:
+          name: Install dependencies
+          command: |
+            pip install ansible
+            sudo apt-get update
+            sudo apt-get install -y ansible ssh-client
+            
+      - run:
+          name: Set up SSH key
+          command: |
+            echo "${SSH_PRIVATE_KEY}" | base64 --decode > private_ssh_key.pem
+            chmod 600 private_ssh_key.pem
+            
+      - aws-cli/setup:
+          profile_name: default
+          role_arn: ${DEV_AWS_ROLE_ARN}
+            
+      - run:
+          name: Run Ansible playbook
+          command: |
+            ansible-playbook -i inventories/dev.yml \
+            playbooks/playbook.yml --limit dev.example.com \
+            --extra-vars "environment=dev"
+            # --extra-vars "@host_vars/dev/mysql.yml" \
+            # --extra-vars "db_user=${DB_USER} db_password=${DB_PASSWORD} db_root_password=${DB_ROOT_PASSWORD} db_name=${DB_NAME}"
+  
+  deploy-prod:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      
+      - run:
+          name: Install dependencies
+          command: |
+            pip install ansible
+            sudo apt-get update
+            sudo apt-get install -y ansible ssh-client
+            
+      - run:
+          name: Set up SSH key
+          command: |
+            echo "${PROD_PRIVATE_SSH_KEY}" | base64 --decode > private_ssh_key.pem
+            chmod 600 private_ssh_key.pem
+            
+      - aws-cli/setup:
+          profile_name: default
+          role_arn: ${PROD_AWS_ROLE_ARN}
+            
+      - run:
+          name: Run Ansible playbook
+          command: |
+            ansible-playbook -i inventories/prod.yml \
+            playbooks/install_mysql.yml --limit example.com
+
+workflows:
+  deploy-to-dev:
+    jobs:
+      - deploy-dev:
+          context:
+            - dev-aws-context
+          filters:
+            branches:
+              only:
+                - main
+  
+  deploy-to-prod:
+    jobs:
+      - deploy-prod:
+          context:
+            - prod-aws-context
+          filters:
+            branches:
+              only:
+                - release

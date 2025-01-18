@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  redis:
+    container_name: {{ redis_container_name }}
+    image: redis:{{ redis_version }}
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "{{ redis_port }}:6379"
+    volumes:
+      - {{ redis_data_directory }}:/data
+      - {{ redis_directory }}/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped

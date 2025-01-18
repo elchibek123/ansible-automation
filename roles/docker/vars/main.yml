@@ -1,0 +1,2 @@
+docker_ubuntu_version: "{{ ansible_distribution_release }}"
+docker_data_dir: "/opt/docker/data"

@@ -1,0 +1,27 @@
+- name: Ensure Docker Compose is installed
+  apt:
+    name: docker-compose
+    state: present
+
+- name: Create directory {{ redis_directory }}
+  file:
+    path: "{{ redis_directory }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy docker-compose.yml to remote host
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ redis_directory }}/docker-compose.yml"
+    mode: '0644'
+    force: yes
+
+- name: Start Redis container
+  command: docker-compose up -d
+  args:
+    chdir: "{{ redis_directory }}"
+
+- name: Verify Redis container is running
+  shell: docker ps | grep redis
+  register: redis_status
+  failed_when: redis_status.stdout.find('redis') == -1

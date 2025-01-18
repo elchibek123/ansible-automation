@@ -1,0 +1,78 @@
+---
+- name: Check if Docker is already installed
+  block:
+    - name: Copy check_installed_packages.sh to remote host
+      template:
+        src: check_installed_packages.sh
+        dest: "/tmp/check_installed_packages.sh"
+        mode: '0755'
+        force: yes
+
+    - name: Execute check_installed_packages.sh with package name as argument
+      command: "/tmp/check_installed_packages.sh docker-ce"
+      register: result_out
+      ignore_errors: true
+      changed_when: false
+  
+  always:
+    - name: Remove check_installed_packages.sh from /tmp folder
+      file:
+        path: "/tmp/check_installed_packages.sh"
+        state: absent
+
+- name: Display message when Docker is already installed
+  debug:
+    msg: "Docker is already installed on the server."
+  when: result_out.rc == 0
+
+- name: Proceed with Docker installation
+  when: result_out.rc != 0
+  block:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install prerequisite packages
+      apt:
+        name: 
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Update apt package index after adding Docker repo
+      apt:
+        update_cache: yes
+
+    - name: Install Docker Packages
+      apt:
+        name: "{{ docker_packages }}"
+        state: "{{ docker_version }}"
+
+    - name: Ensure Docker service is started and enabled
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add users to docker group
+      user:
+        name: "{{ item }}"
+        groups: docker
+        append: yes
+      with_items: "{{ docker_users }}"
+      when: docker_users | length > 0
+      notify: reset ssh connection

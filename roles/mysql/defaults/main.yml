@@ -1,0 +1,21 @@
+# Database configuration
+mysql_version: "9"
+mysql_user: "mysqldbuser"
+mysql_password: "mysql123"
+root_password: "mysqlroot123"
+mysql_db: "mysql_db"
+mysql_port: "3306"
+
+# Container configuration
+mysql_container_name: "mysql_db"
+mysql_volume_name: "mysql_data"
+
+# Data directory
+mysql_data_dir: "/opt/mysql"
+mysql_backup_dir: "/opt/mysql/backup"
+
+# Backup configuration
+mysql_backup_retention_days: 7
+enable_automatic_backups: true
+backup_hour: "3"
+backup_minute: "30"
